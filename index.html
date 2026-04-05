@@ -30,6 +30,26 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
 .chip.ron{background:var(--ac);color:#0d1b2a;border-color:var(--ac);font-weight:700}
 .chip.bon{background:var(--bl);color:#fff;border-color:var(--bl);font-weight:700}
 .chip.sel{border-color:var(--ac);color:var(--ac);background:rgba(240,165,0,.1)}
+/* Price input modal */
+.pmodal{position:fixed;inset:0;z-index:200;display:flex;align-items:flex-end;justify-content:center;pointer-events:none;opacity:0;transition:opacity .2s}
+.pmodal.open{opacity:1;pointer-events:all}
+.pmodal-bg{position:absolute;inset:0;background:rgba(0,0,0,.7)}
+.pmodal-box{position:relative;background:var(--s);border-radius:18px 18px 0 0;width:100%;max-width:430px;padding:20px 20px calc(env(safe-area-inset-bottom,20px)+20px);transform:translateY(100%);transition:transform .3s cubic-bezier(.32,.72,0,1)}
+.pmodal.open .pmodal-box{transform:translateY(0)}
+.pmodal-handle{width:34px;height:4px;background:var(--bd);border-radius:2px;margin:0 auto 16px}
+.pmodal-title{font-size:.95rem;font-weight:700;margin-bottom:4px}
+.pmodal-sub{font-size:.72rem;color:var(--mu);margin-bottom:16px}
+.pinput-row{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.pinput-wrap{flex:1;background:var(--s2);border:1.5px solid var(--bd);border-radius:10px;display:flex;align-items:center;padding:0 12px;transition:border-color .2s}
+.pinput-wrap:focus-within{border-color:var(--ac)}
+.pinput-prefix{font-size:.8rem;color:var(--mu)}
+.pinput-wrap input{flex:1;background:none;border:none;outline:none;color:var(--tx);font-size:.95rem;padding:12px 6px;width:0}
+.pinput-unit{font-size:.72rem;color:var(--mu);white-space:nowrap}
+.pinput-sep{color:var(--mu);font-size:1.1rem;flex-shrink:0}
+.pbtn-row{display:flex;gap:10px}
+.pbtn-clr{flex:1;padding:13px;border-radius:12px;border:1px solid var(--bd);background:var(--s2);color:var(--mu);font-size:.88rem;cursor:pointer}
+.pbtn-ok{flex:2;padding:13px;border-radius:12px;border:none;background:var(--ac);color:#0d1b2a;font-size:.88rem;font-weight:700;cursor:pointer}
+.pmodal.buy-mode .pbtn-ok{background:var(--bl)}
 .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(env(safe-area-inset-bottom,20px) + 70px)}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--bd);margin-bottom:12px}
 .stat{background:var(--s);padding:10px 4px;text-align:center}
@@ -120,6 +140,32 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:-apple-sy
   <div class="bni" onclick="alert('即將上線')"><div class="ni">🔖</div>收藏</div>
   <div class="bni" onclick="alert('即將上線')"><div class="ni">📊</div>行情</div>
 </div>
+<!-- Price input modal -->
+<div class="pmodal" id="pmodal">
+  <div class="pmodal-bg" onclick="closePM()"></div>
+  <div class="pmodal-box">
+    <div class="pmodal-handle"></div>
+    <div class="pmodal-title" id="pm-title">自訂租金範圍</div>
+    <div class="pmodal-sub" id="pm-sub">輸入最低與最高金額（元/月）</div>
+    <div class="pinput-row">
+      <div class="pinput-wrap">
+        <span class="pinput-prefix">$</span>
+        <input type="number" id="pm-min" placeholder="最低" inputmode="numeric">
+        <span class="pinput-unit" id="pm-unit-l">元</span>
+      </div>
+      <span class="pinput-sep">—</span>
+      <div class="pinput-wrap">
+        <span class="pinput-prefix">$</span>
+        <input type="number" id="pm-max" placeholder="最高" inputmode="numeric">
+        <span class="pinput-unit" id="pm-unit-r">元</span>
+      </div>
+    </div>
+    <div class="pbtn-row">
+      <button class="pbtn-clr" onclick="clearPM()">清除</button>
+      <button class="pbtn-ok" onclick="confirmPM()">套用</button>
+    </div>
+  </div>
+</div>
 <div class="backdrop" id="bd" onclick="closeS()"></div>
 <div class="sheet" id="sh">
   <div class="sh"></div>
@@ -197,6 +243,7 @@ const ER={'整層住家':'🏠','獨立套房':'🛋️','雅房':'🛏️'};
 const EB={'電梯大樓':'🏢','公寓':'🏘️','透天厝':'🏡'};
 
 let mode='rent',rP=30000,rT='all',bP=10000,bT='all',fK='',sC='',sD=[],aC='',aD=[],pg=1;
+let rPmin=0,rPmax=0,bPmin=0,bPmax=0; // 0 = not set
 const PP=10;
 
 function setMode(m){
@@ -210,11 +257,14 @@ function buildF(){
   const f1=document.getElementById('fr1'),f2=document.getElementById('fr2');
   const rc=`<div class="chip${aC?' sel':''}" onclick="openS()">📍 <span id="rt">${aC?(aD.length?aC+'·'+aD.length+'區':aC):'選擇地區'}</span> ▾</div>`;
   if(mode==='rent'){
+    const hasCustom=rPmin>0||rPmax>0;
+    const customLabel=hasCustom?`自訂 ${rPmin?'$'+(rPmin/1000).toFixed(0)+'k':''}—${rPmax?'$'+(rPmax/1000).toFixed(0)+'k':''}`:'自訂範圍';
     f1.innerHTML=rc+
-      `<div class="chip${rP===30000?' ron':''}" onclick="setRP(30000)">三萬以下</div>`+
-      `<div class="chip${rP===20000?' ron':''}" onclick="setRP(20000)">兩萬以下</div>`+
-      `<div class="chip${rP===15000?' ron':''}" onclick="setRP(15000)">一萬五以下</div>`+
-      `<div class="chip${rP===10000?' ron':''}" onclick="setRP(10000)">一萬以下</div>`;
+      `<div class="chip${!hasCustom&&rP===30000?' ron':''}" onclick="setRP(30000)">三萬以下</div>`+
+      `<div class="chip${!hasCustom&&rP===20000?' ron':''}" onclick="setRP(20000)">兩萬以下</div>`+
+      `<div class="chip${!hasCustom&&rP===15000?' ron':''}" onclick="setRP(15000)">一萬五以下</div>`+
+      `<div class="chip${!hasCustom&&rP===10000?' ron':''}" onclick="setRP(10000)">一萬以下</div>`+
+      `<div class="chip${hasCustom?' ron':''}" onclick="openPM()">✏️ ${customLabel}</div>`;
     f2.innerHTML=
       `<div class="chip${rT==='all'?' ron':''}" onclick="setRT('all')">全部房型</div>`+
       `<div class="chip${rT==='整層住家'?' ron':''}" onclick="setRT('整層住家')">🏠 整層住家</div>`+
@@ -223,12 +273,15 @@ function buildF(){
     document.getElementById('sl2').textContent='平均租金';
     document.getElementById('sl3').textContent='最低租金';
   } else {
+    const hasCustom=bPmin>0||bPmax>0;
+    const customLabel=hasCustom?`自訂 ${bPmin?bPmin+'萬':''}—${bPmax?bPmax+'萬':''}`:'自訂範圍';
     f1.innerHTML=rc+
-      `<div class="chip${bP===10000?' bon':''}" onclick="setBP(10000)">不限總價</div>`+
-      `<div class="chip${bP===500?' bon':''}" onclick="setBP(500)">500萬以下</div>`+
-      `<div class="chip${bP===800?' bon':''}" onclick="setBP(800)">800萬以下</div>`+
-      `<div class="chip${bP===1200?' bon':''}" onclick="setBP(1200)">1200萬以下</div>`+
-      `<div class="chip${bP===2000?' bon':''}" onclick="setBP(2000)">2000萬以下</div>`;
+      `<div class="chip${!hasCustom&&bP===10000?' bon':''}" onclick="setBP(10000)">不限總價</div>`+
+      `<div class="chip${!hasCustom&&bP===500?' bon':''}" onclick="setBP(500)">500萬以下</div>`+
+      `<div class="chip${!hasCustom&&bP===800?' bon':''}" onclick="setBP(800)">800萬以下</div>`+
+      `<div class="chip${!hasCustom&&bP===1200?' bon':''}" onclick="setBP(1200)">1200萬以下</div>`+
+      `<div class="chip${!hasCustom&&bP===2000?' bon':''}" onclick="setBP(2000)">2000萬以下</div>`+
+      `<div class="chip${hasCustom?' bon':''}" onclick="openPM()">✏️ ${customLabel}</div>`;
     f2.innerHTML=
       `<div class="chip${bT==='all'?' bon':''}" onclick="setBT('all')">全部類型</div>`+
       `<div class="chip${bT==='電梯大樓'?' bon':''}" onclick="setBT('電梯大樓')">🏢 電梯大樓</div>`+
@@ -246,17 +299,53 @@ function buildP(){
     :`<a class="pc" href="https://sale.591.com.tw/" target="_blank">🏢 591買屋</a><a class="pc" href="https://www.sinyi.com.tw/buy/" target="_blank">🏠 信義房屋</a><a class="pc" href="https://www.yungching.com.tw/buy" target="_blank">🔑 永慶房屋</a><a class="pc" href="https://lvr.land.moi.gov.tw/" target="_blank">📋 實價登錄</a>`;
 }
 
-function setRP(p){rP=p;pg=1;buildF();render();}
+function setRP(p){rP=p;rPmin=0;rPmax=0;pg=1;buildF();render();}
 function setRT(t){rT=t;pg=1;buildF();render();}
-function setBP(p){bP=p;pg=1;buildF();render();}
+function setBP(p){bP=p;bPmin=0;bPmax=0;pg=1;buildF();render();}
 function setBT(t){bT=t;pg=1;buildF();render();}
 function onI(el){fK=el.value.trim().toLowerCase();pg=1;render();}
+
+// Price modal
+function openPM(){
+  const ib=mode==='buy';
+  const pm=document.getElementById('pmodal');
+  pm.className='pmodal open'+(ib?' buy-mode':'');
+  document.getElementById('pm-title').textContent=ib?'自訂總價範圍':'自訂租金範圍';
+  document.getElementById('pm-sub').textContent=ib?'輸入最低與最高總價（萬元）':'輸入最低與最高租金（元/月）';
+  document.getElementById('pm-unit-l').textContent=ib?'萬':'元';
+  document.getElementById('pm-unit-r').textContent=ib?'萬':'元';
+  document.getElementById('pm-min').value=ib?(bPmin||''):(rPmin||'');
+  document.getElementById('pm-max').value=ib?(bPmax||''):(rPmax||'');
+  setTimeout(()=>document.getElementById('pm-min').focus(),300);
+}
+function closePM(){document.getElementById('pmodal').className='pmodal';}
+function clearPM(){
+  document.getElementById('pm-min').value='';
+  document.getElementById('pm-max').value='';
+}
+function confirmPM(){
+  const ib=mode==='buy';
+  const minV=parseInt(document.getElementById('pm-min').value)||0;
+  const maxV=parseInt(document.getElementById('pm-max').value)||0;
+  if(ib){bPmin=minV;bPmax=maxV;bP=10000;}
+  else{rPmin=minV;rPmax=maxV;rP=999999;}
+  pg=1;closePM();buildF();render();
+}
 
 function fil(){
   const src=mode==='rent'?RENT:BUY;
   return src.filter(d=>{
-    if(mode==='rent'){if(d.price>rP)return false;if(rT!=='all'&&d.type!==rT)return false;}
-    else{if(bP!==10000&&d.price>bP)return false;if(bT!=='all'&&d.type!==bT)return false;}
+    if(mode==='rent'){
+      const hasCustom=rPmin>0||rPmax>0;
+      if(hasCustom){if(rPmin>0&&d.price<rPmin)return false;if(rPmax>0&&d.price>rPmax)return false;}
+      else{if(d.price>rP)return false;}
+      if(rT!=='all'&&d.type!==rT)return false;
+    } else {
+      const hasCustom=bPmin>0||bPmax>0;
+      if(hasCustom){if(bPmin>0&&d.price<bPmin)return false;if(bPmax>0&&d.price>bPmax)return false;}
+      else{if(bP!==10000&&d.price>bP)return false;}
+      if(bT!=='all'&&d.type!==bT)return false;
+    }
     if(aC&&d.city!==aC)return false;
     if(aD.length&&!aD.includes(d.dist))return false;
     if(fK&&!(d.city+d.dist+d.addr+d.tags.join('')).toLowerCase().includes(fK))return false;
